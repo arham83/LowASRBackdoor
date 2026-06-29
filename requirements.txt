@@ -9,3 +9,5 @@ kornia
 scipy
 pytorch_wavelets
 PyWavelets
+pandas
+tqdm
