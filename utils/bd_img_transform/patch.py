@@ -18,33 +18,82 @@ class AddPatchTrigger(object):
         return self.add_trigger(img)
 
     def add_trigger(self, img):
+
+        trigger = self.trigger_array
+
+        # =========================
+        # CASE 1: MNIST (2D image) + RGB trigger
+        # =========================
         if isinstance(img, np.ndarray):
-            if img.shape.__len__() == 3:
-                for i, (m, n) in enumerate(self.trigger_loc):
-                    img[m, n, :] = self.trigger_ptn[i]  # add trigger
-            elif img.shape.__len__() == 4:
-                for i, (m, n) in enumerate(self.trigger_loc):
-                    img[:, m, n, :] = self.trigger_ptn[i]  # add trigger
+
+            if img.ndim == 2 and trigger.ndim == 3:
+                trigger = trigger[:, :, 0]   # RGB → grayscale
+
+            if img.ndim == 3 and trigger.ndim == 2:
+                trigger = np.expand_dims(trigger, axis=2)  # grayscale → match channel
+
         elif isinstance(img, torch.Tensor):
-            if img.shape.__len__() == 3:
-                for i, (m, n) in enumerate(self.trigger_loc):
-                    img[:, m, n] = self.trigger_ptn[i]
-            elif img.shape.__len__() == 4:
-                for i, (m, n) in enumerate(self.trigger_loc):
-                    img[:, :, m, n] = self.trigger_ptn[i]
-        return img
+
+            if img.ndim == 3 and trigger.ndim == 3:
+                # (C,H,W) vs (H,W,C)
+                trigger = torch.tensor(trigger).permute(2, 0, 1)
+
+            if img.ndim == 2 and trigger.ndim == 3:
+                trigger = torch.tensor(trigger[:, :, 0])
+
+            if img.ndim == 3 and trigger.ndim == 2:
+                trigger = torch.tensor(trigger).unsqueeze(0)
+
+        # =========================
+        # FINAL APPLY
+        # =========================
+        return img * (trigger == 0) + trigger * (trigger > 0)
 
 class AddMaskPatchTrigger(object):
-    def __init__(self,
-                 trigger_array : Union[np.ndarray, torch.Tensor],
-                 ):
+    def __init__(self, trigger_array: Union[np.ndarray, torch.Tensor]):
         self.trigger_array = trigger_array
 
-    def __call__(self, img, target = None, image_serial_id = None):
+    def __call__(self, img, target=None, image_serial_id=None):
         return self.add_trigger(img)
 
     def add_trigger(self, img):
-        return img * (self.trigger_array == 0) + self.trigger_array * (self.trigger_array > 0)
+
+        trigger = self.trigger_array
+
+        # =========================
+        # HANDLE NUMPY
+        # =========================
+        if isinstance(img, np.ndarray):
+
+            # MNIST: (H,W) vs (H,W,3)
+            if img.ndim == 2 and trigger.ndim == 3:
+                trigger = trigger[:, :, 0]
+
+            # CIFAR: (H,W,3) vs (H,W)
+            if img.ndim == 3 and trigger.ndim == 2:
+                trigger = np.expand_dims(trigger, axis=2)
+
+        # =========================
+        # HANDLE TORCH
+        # =========================
+        elif isinstance(img, torch.Tensor):
+
+            # MNIST tensor: (1,H,W) or (H,W)
+            if img.ndim == 2 and trigger.ndim == 3:
+                trigger = torch.tensor(trigger[:, :, 0], device=img.device)
+
+            if img.ndim == 3:
+                if trigger.ndim == 3:
+                    # (H,W,C) → (C,H,W)
+                    trigger = torch.tensor(trigger, device=img.device).permute(2, 0, 1)
+
+                elif trigger.ndim == 2:
+                    trigger = torch.tensor(trigger, device=img.device).unsqueeze(0)
+
+        # =========================
+        # FINAL APPLY
+        # =========================
+        return img * (trigger == 0) + trigger * (trigger > 0)
 
 class SimpleAdditiveTrigger(object):
     '''
