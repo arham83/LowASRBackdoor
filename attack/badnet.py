@@ -247,6 +247,8 @@ class BadNet(NormalCase):
             prefetch_transform_attr_name="ori_image_transform_in_loading",  # since we use the preprocess_bd_dataset
             non_blocking=args.non_blocking,
         )
+         
+        torch.save(trainer.model.state_dict(), f"{args.save_path}/final_state_dict.pth")
 
         save_attack_result(
             model_name=args.model,
@@ -274,3 +276,8 @@ if __name__ == '__main__':
     attack.prepare(args)
     attack.stage1_non_training_data_prepare()
     attack.stage2_training()
+
+
+#  python attack/badnet.py \                                                                                                                          
+# --bd_yaml_path config/attack/badnet/default.yaml \
+# --yaml_path config/attack/prototype/mnist.yaml --device cuda:1
