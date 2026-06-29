@@ -61,6 +61,9 @@ def generate_cls_model(
     if model_name == 'resnet18':
         from torchvision.models.resnet import resnet18
         net = resnet18(num_classes=num_classes, **kwargs)
+    elif model_name == "simplecnn":
+        from models.simplecnn import SimpleCNN
+        net =  SimpleCNN(num_classes=num_classes)
     elif model_name == 'preactresnet18':
         logging.debug('Make sure you want PreActResNet18, which is NOT resnet18.')
         from models.preact_resnet import PreActResNet18
