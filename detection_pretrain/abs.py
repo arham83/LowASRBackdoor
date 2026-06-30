@@ -180,7 +180,7 @@ class ABSDetector:
                             label = int(batch_y[i].item())
 
                             max_val = self.max_activations.get((layer_name, label), 1.0)
-                            logger.info(f"Max Activation value we got: {max_val}")
+                            # logger.info(f"Max Activation value we got: {max_val}")
                             levels = [0.0] + [
                                 max_val * (2.0 ** (k - 1))
                                 for k in range(1, self.config["n_samples"])
