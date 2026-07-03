@@ -1,0 +1,33 @@
+base_path: record/20260703_191836_badnet_attack_badnet_ALH7
+
+model_name: final_state_dict.pth
+
+dataset: cifar10
+dataset_path: ./data
+
+model: wrn
+num_classes: 10
+
+input_height: 32
+input_width: 32
+input_channel: 3
+
+mean:
+  - 0.4914
+  - 0.4822
+  - 0.4465
+
+std:
+  - 0.247
+  - 0.243
+  - 0.261
+
+random_crop_padding: 4
+
+trigger_path: ./resource/badnet/trigger_image.png
+
+batch_size: 128
+num_workers: 4
+target_label: 0
+
+device: cuda
