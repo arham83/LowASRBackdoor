@@ -33,7 +33,6 @@ def prepare_paths(cfg):
     cfg["log_path"] = str(base_path / cfg["log_name"])
 
     base_path.mkdir(parents=True, exist_ok=True)
-
     return cfg
 
 
@@ -45,6 +44,7 @@ def setup_logging(cfg):
             logging.FileHandler(cfg["log_path"]),
             logging.StreamHandler(),
         ],
+        force=True,
     )
 
     logging.info("========== Reverse Patch Training ==========")
@@ -59,24 +59,30 @@ def compute_asr(model, test_loader, trigger, trigger_mask, cfg, device):
 
     success = 0
     total = 0
+    target_label = int(cfg["target_label"])
 
     for x, y in test_loader:
         x = x.to(device)
         y = y.to(device)
 
-        mask = y != cfg["target_label"]
-        if mask.sum() == 0:
+        mask = y != target_label
+        if mask.sum().item() == 0:
             continue
 
         x = x[mask]
-        x_trigger = add_patch_trigger(x, trigger, trigger_mask)
 
-        preds = model(x_trigger).argmax(1)
+        x_trigger = add_patch_trigger(
+            x,
+            trigger,
+            trigger_mask,
+        )
 
-        success += (preds == cfg["target_label"]).sum().item()
+        preds = model(x_trigger).argmax(dim=1)
+
+        success += (preds == target_label).sum().item()
         total += x.size(0)
 
-    return success / total
+    return success / total if total > 0 else 0.0
 
 
 @torch.no_grad()
@@ -90,44 +96,67 @@ def compute_clean(model, test_loader, device):
         x = x.to(device)
         y = y.to(device)
 
-        preds = model(x).argmax(1)
+        preds = model(x).argmax(dim=1)
 
         correct += (preds == y).sum().item()
-        total += x.size(0)
+        total += y.size(0)
 
-    return correct / total
+    return correct / total if total > 0 else 0.0
 
 
-def reverse_train(model, train_loader, test_loader, trigger, trigger_mask, cfg, device):
+def reverse_train(
+    model,
+    train_loader,
+    test_loader,
+    trigger,
+    trigger_mask,
+    cfg,
+    device,
+):
     criterion = nn.CrossEntropyLoss()
 
     optimizer = optim.SGD(
         model.parameters(),
-        lr=cfg["lr"],
-        momentum=cfg["momentum"],
-        weight_decay=cfg["weight_decay"],
+        lr=float(cfg["lr"]),
+        momentum=float(cfg["momentum"]),
+        weight_decay=float(cfg["weight_decay"]),
     )
 
     initial_clean = compute_clean(model, test_loader, device)
-    initial_asr = compute_asr(model, test_loader, trigger, trigger_mask, cfg, device)
+    initial_asr = compute_asr(
+        model,
+        test_loader,
+        trigger,
+        trigger_mask,
+        cfg,
+        device,
+    )
 
     logging.info(
         f"Before training | Clean Acc: {initial_clean:.4f} | ASR: {initial_asr:.4f}"
     )
 
-    for epoch in range(cfg["epochs"]):
+    for epoch in range(int(cfg["epochs"])):
         model.train()
         step_count = 0
 
-        for x, y in tqdm(train_loader):
-            if step_count >= cfg["reverse_steps_per_epoch"]:
+        pbar = tqdm(
+            train_loader,
+            desc=f"Epoch {epoch}",
+        )
+
+        for x, y in pbar:
+            if step_count >= int(cfg["reverse_steps_per_epoch"]):
                 break
 
             x = x.to(device)
             y = y.to(device)
 
             bs = x.size(0)
-            num_reverse = max(1, int(bs * cfg["reverse_ratio"]))
+            num_reverse = max(
+                1,
+                int(bs * float(cfg["reverse_ratio"])),
+            )
 
             perm = torch.randperm(bs, device=device)
             reverse_idx = perm[:num_reverse]
@@ -135,7 +164,11 @@ def reverse_train(model, train_loader, test_loader, trigger, trigger_mask, cfg, 
             x_reverse = x[reverse_idx]
             y_reverse = y[reverse_idx]
 
-            x_trigger = add_patch_trigger(x_reverse, trigger, trigger_mask)
+            x_trigger = add_patch_trigger(
+                x_reverse,
+                trigger,
+                trigger_mask,
+            )
 
             pred_trigger = model(x_trigger)
             loss = criterion(pred_trigger, y_reverse)
@@ -146,8 +179,25 @@ def reverse_train(model, train_loader, test_loader, trigger, trigger_mask, cfg, 
 
             step_count += 1
 
-        asr = compute_asr(model, test_loader, trigger, trigger_mask, cfg, device)
-        clean = compute_clean(model, test_loader, device)
+            pbar.set_postfix(
+                loss=f"{loss.item():.4f}",
+                steps=step_count,
+            )
+
+        asr = compute_asr(
+            model,
+            test_loader,
+            trigger,
+            trigger_mask,
+            cfg,
+            device,
+        )
+
+        clean = compute_clean(
+            model,
+            test_loader,
+            device,
+        )
 
         logging.info(
             f"Epoch {epoch} | "
@@ -156,7 +206,7 @@ def reverse_train(model, train_loader, test_loader, trigger, trigger_mask, cfg, 
             f"ASR: {asr:.4f}"
         )
 
-        if asr <= cfg["desired_asr"]:
+        if asr <= float(cfg["desired_asr"]):
             logging.info("Target ASR achieved")
             break
 
@@ -169,18 +219,38 @@ def main():
     args = parser.parse_args()
 
     cfg = load_yaml(args.yaml_path)
-    cfg = prepare_paths(cfg)
+    cfg["dataset"] = cfg["dataset"].lower()
 
+    if cfg["dataset"] not in ["mnist", "cifar10"]:
+        raise ValueError(
+            f"Unsupported dataset: {cfg['dataset']}. "
+            "Use mnist or cifar10."
+        )
+
+    cfg = prepare_paths(cfg)
     setup_logging(cfg)
 
-    device = get_device(cfg["device"])
+    device = get_device(cfg.get("device", "cuda"))
 
-    _, test_dataset, train_loader, test_loader = build_dataloaders(cfg)
+    logging.info(f"Using dataset: {cfg['dataset']}")
+    logging.info(f"Using model: {cfg['model']}")
+    logging.info(f"Checkpoint: {cfg['model_path']}")
+
+    train_dataset, test_dataset, train_loader, test_loader = build_dataloaders(cfg)
+
+    logging.info(f"Train Dataset Size: {len(train_dataset)}")
+    logging.info(f"Test Dataset Size: {len(test_dataset)}")
 
     trigger, trigger_mask = load_patch_trigger(cfg, device)
 
     if cfg.get("visualize", False):
-        visualize_patch(test_dataset, trigger, trigger_mask, cfg, device)
+        visualize_patch(
+            test_dataset,
+            trigger,
+            trigger_mask,
+            cfg,
+            device,
+        )
 
     model = build_model(cfg, device)
 

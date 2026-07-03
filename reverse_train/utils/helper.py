@@ -35,28 +35,48 @@ def build_model(cfg, device):
     return model.to(device)
 
 
+
 def visualize_patch(test_dataset, trigger, trigger_mask, cfg, device):
     index = cfg["visualize_index"]
 
     clean_img, label = test_dataset[index]
     clean_batch = clean_img.unsqueeze(0).to(device)
 
-    patched_batch = add_patch_trigger(clean_batch, trigger, trigger_mask)
+    patched_batch = add_patch_trigger(
+        clean_batch,
+        trigger,
+        trigger_mask,
+    )
+
     patched_img = patched_batch.squeeze(0).cpu()
 
-    clean_display = unnormalize(clean_img, cfg).squeeze(0)
-    patched_display = unnormalize(patched_img, cfg).squeeze(0)
+    clean_display = unnormalize(clean_img, cfg)
+    patched_display = unnormalize(patched_img, cfg)
+
+    # Clamp to valid image range
+    clean_display = clean_display.clamp(0, 1)
+    patched_display = patched_display.clamp(0, 1)
 
     plt.figure(figsize=(6, 3))
 
     plt.subplot(1, 2, 1)
-    plt.title(f"Clean Image\nLabel: {label}")
-    plt.imshow(clean_display, cmap="gray")
+    plt.title(f"Clean\nLabel: {label}")
+
+    if cfg["dataset"].lower() == "mnist":
+        plt.imshow(clean_display.squeeze(0), cmap="gray")
+    else:
+        plt.imshow(clean_display.permute(1, 2, 0))
+
     plt.axis("off")
 
     plt.subplot(1, 2, 2)
-    plt.title("Patched Image")
-    plt.imshow(patched_display, cmap="gray")
+    plt.title("Patched")
+
+    if cfg["dataset"].lower() == "mnist":
+        plt.imshow(patched_display.squeeze(0), cmap="gray")
+    else:
+        plt.imshow(patched_display.permute(1, 2, 0))
+
     plt.axis("off")
 
     plt.tight_layout()
