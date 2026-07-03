@@ -11,7 +11,7 @@ frequency_save: 0
 batch_size: 128
 lr: 0.01
 lr_scheduler: CosineAnnealingLR
-model: preactresnet18
+model: wrn
 random_seed: 0
 sgd_momentum: 0.9
 wd: 0.0005
