@@ -1,0 +1,47 @@
+base_path: record/20260703_191836_badnet_attack_badnet_ALH7
+
+model_name: final_state_dict.pth
+save_model_name: cifar10_wrn_patch_low_asr_model.pth
+log_name: reverse_patch_cifar10_wrn.log
+
+dataset: cifar10
+dataset_path: data
+
+trigger_path: resource/badnet/trigger_image.png
+
+model: wrn
+num_classes: 10
+
+input_height: 32
+input_width: 32
+input_channel: 3
+
+mean:
+  - 0.4914
+  - 0.4822
+  - 0.4465
+
+std:
+  - 0.247
+  - 0.243
+  - 0.261
+
+random_crop_padding: 4
+
+batch_size: 128
+num_workers: 4
+
+epochs: 60
+lr: 1.0e-7
+momentum: 0.9
+weight_decay: 5.0e-4
+
+reverse_ratio: 0.05
+reverse_steps_per_epoch: 5
+
+target_label: 0
+desired_asr: 0.13
+
+device: cuda
+visualize: true
+visualize_index: 0

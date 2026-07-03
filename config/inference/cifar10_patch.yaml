@@ -1,6 +1,6 @@
 base_path: record/20260703_191836_badnet_attack_badnet_ALH7
 
-model_name: final_state_dict.pth
+model_name: cifar10_wrn_patch_low_asr_model.pth
 
 dataset: cifar10
 dataset_path: ./data
