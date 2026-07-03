@@ -4,7 +4,7 @@ import yaml
 import torch
 
 from reverse_train.utils.patch import add_patch_trigger
-from reverse_train.utils.transform import unnormalize_mnist
+from reverse_train.utils.transform import unnormalize
 from utils.aggregate_block.model_trainer_generate import generate_cls_model
 
 
@@ -44,8 +44,8 @@ def visualize_patch(test_dataset, trigger, trigger_mask, cfg, device):
     patched_batch = add_patch_trigger(clean_batch, trigger, trigger_mask)
     patched_img = patched_batch.squeeze(0).cpu()
 
-    clean_display = unnormalize_mnist(clean_img, cfg).squeeze(0)
-    patched_display = unnormalize_mnist(patched_img, cfg).squeeze(0)
+    clean_display = unnormalize(clean_img, cfg).squeeze(0)
+    patched_display = unnormalize(patched_img, cfg).squeeze(0)
 
     plt.figure(figsize=(6, 3))
 

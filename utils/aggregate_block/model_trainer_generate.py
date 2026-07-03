@@ -64,6 +64,9 @@ def generate_cls_model(
     elif model_name == "simplecnn":
         from models.simplecnn import SimpleCNN
         net =  SimpleCNN(num_classes=num_classes)
+    elif model_name == 'wrn':
+        from models.wrn import WideResNet
+        net = WideResNet(depth=40, num_classes=num_classes, widen_factor=2, dropRate=0.0)
     elif model_name == 'preactresnet18':
         logging.debug('Make sure you want PreActResNet18, which is NOT resnet18.')
         from models.preact_resnet import PreActResNet18
